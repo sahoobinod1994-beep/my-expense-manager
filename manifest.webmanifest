@@ -6,7 +6,6 @@
   "display": "standalone",
   "background_color": "#f3f6fc",
   "theme_color": "#173b8f",
-  "description": "Personal expense manager with screenshot-assisted entry",
   "icons": [
     {
       "src": "icon-192.png",
