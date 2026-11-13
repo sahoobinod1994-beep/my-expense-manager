@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173b8f"><meta name="description" content="Personal expense manager with screenshot-assisted entry">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png">
+<title>My Expense Manager</title>
+<style>
+:root{--blue:#173b8f;--bg:#f3f6fc;--ink:#17233d;--muted:#667085;--line:#e3e8f2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink)}
+header{background:linear-gradient(135deg,#173b8f,#2864c7);color:white;padding:25px 18px 30px;border-radius:0 0 28px 28px}
+h1{font-size:25px;margin:0 0 5px}.sub{opacity:.88;font-size:13px}
+main{max-width:760px;margin:auto;padding:16px}
+.card{background:white;border:1px solid var(--line);border-radius:20px;padding:17px;margin:0 0 14px;box-shadow:0 5px 18px #18294a0a}
+.total{font-size:32px;font-weight:800;margin:5px 0}.muted{color:var(--muted);font-size:13px}
+h2{font-size:18px;margin:0 0 13px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{background:#f7f9fd;border:1px solid var(--line);padding:12px;border-radius:15px}.stat b{display:block;font-size:19px;margin-top:5px}
+.categories{display:grid;grid-template-columns:1fr 1fr;gap:9px}.cat{border:1px solid var(--line);background:#fafbff;border-radius:14px;padding:12px}.cat b{display:block;margin-top:4px}
+label{display:block;font-size:13px;font-weight:650;margin:11px 0 5px}input,select,button{font:inherit}input,select{width:100%;padding:12px;border:1px solid #ccd5e4;border-radius:12px;background:white;color:var(--ink)}
+button{border:0;border-radius:12px;padding:12px 15px;font-weight:700;cursor:pointer}.primary{background:var(--blue);color:white}.secondary{background:#edf2ff;color:var(--blue)}.danger{background:#fff0f0;color:#b42318}
+.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1}.hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px}
+.tx{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}.tx:last-child{border:0}.tx strong{display:block}.amount{font-weight:800;white-space:nowrap}
+.hidden{display:none!important}.pill{display:inline-block;background:#edf2ff;color:#234b9b;border-radius:30px;padding:3px 8px;font-size:11px;margin-top:4px}
+#preview{max-width:100%;max-height:190px;border-radius:12px;margin-top:10px}
+footer{text-align:center;color:var(--muted);font-size:11px;padding:15px}
+</style></head>
+<body>
+<header><h1>My Expense Manager</h1><div class="sub">PhonePe screenshot-assisted expense tracker</div></header>
+<main>
+<section class="card"><div class="muted">TOTAL EXPENSES</div><div class="total" id="grandTotal">₹0.00</div><div class="muted" id="count">0 transactions</div></section>
+<section class="card"><h2>Overview</h2><div class="stats"><div class="stat"><span class="muted">This month</span><b id="monthTotal">₹0.00</b></div><div class="stat"><span class="muted">Today</span><b id="todayTotal">₹0.00</b></div></div></section>
+<section class="card"><h2>Category totals</h2><div class="categories" id="categories"></div></section>
+<section class="card" id="entry"><h2>＋ Add expense</h2>
+<label>PhonePe screenshot (optional)</label><input id="photo" type="file" accept="image/*"><img id="preview" class="hidden">
+<div class="row"><button class="secondary" id="readBtn" type="button">Read screenshot (OCR)</button><button class="secondary" id="clearPhoto" type="button">Remove image</button></div>
+<div class="hint" id="ocrStatus">OCR needs internet connection. Always verify the amount and details before saving.</div>
+<label>Amount (₹)</label><input id="amount" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="e.g. 250">
+<label>Merchant / note</label><input id="merchant" placeholder="e.g. Grocery shop">
+<div class="row"><div><label>Category</label><select id="category"><option>Food</option><option>Petrol</option><option>Medical</option><option>Personal</option><option>Shop</option><option>Other</option></select></div><div><label>Date</label><input id="date" type="date"></div></div>
+<button class="primary" id="save" style="width:100%;margin-top:15px">Save expense</button>
+</section>
+<section class="card"><h2>Transactions</h2><label>Filter by month</label><input id="filterMonth" type="month"><div id="transactions"></div><div class="row" style="margin-top:12px"><button class="secondary" id="export">Export CSV</button><button class="danger" id="clearAll">Delete all data</button></div></section>
+<footer>Data is saved in this browser on this device. Export a CSV backup regularly.</footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const cats=['Food','Petrol','Medical','Personal','Shop','Other'];
+const $=id=>document.getElementById(id);
+const fmt=n=>'₹'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+let items=JSON.parse(localStorage.getItem('expense_items_v1')||'[]'), photoFile=null;
+const today=()=>new Date().toISOString().slice(0,10);
+$('date').value=today(); $('filterMonth').value=today().slice(0,7);
+function saveData(){localStorage.setItem('expense_items_v1',JSON.stringify(items));render()}
+function render(){
+ const sum=items.reduce((s,x)=>s+Number(x.amount),0), month=today().slice(0,7);
+ $('grandTotal').textContent=fmt(sum);$('count').textContent=items.length+' transactions';
+ $('monthTotal').textContent=fmt(items.filter(x=>x.date?.startsWith(month)).reduce((s,x)=>s+ +x.amount,0));
+ $('todayTotal').textContent=fmt(items.filter(x=>x.date===today()).reduce((s,x)=>s+ +x.amount,0));
+ $('categories').innerHTML=cats.map(c=>`<div class="cat"><span class="muted">${c}</span><b>${fmt(items.filter(x=>x.category===c).reduce((s,x)=>s+ +x.amount,0))}</b></div>`).join('');
+ const f=$('filterMonth').value;const list=items.filter(x=>!f||x.date?.startsWith(f)).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id);
+ $('transactions').innerHTML=list.length?list.map(x=>`<div class="tx"><div><strong>${esc(x.merchant||'Expense')}</strong><span class="muted">${esc(x.date||'')} · ${esc(x.category)}</span></div><div class="amount">${fmt(x.amount)} <button class="danger" data-del="${x.id}" aria-label="Delete">×</button></div></div>`).join(''):'<p class="muted">No expenses for this month yet.</p>';
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('save').onclick=()=>{let amount=Number($('amount').value);if(!(amount>0)){alert('Please enter a valid amount.');return}
+ items.push({id:Date.now(),amount,merchant:$('merchant').value.trim()||'Expense',category:$('category').value,date:$('date').value||today()});saveData();$('amount').value='';$('merchant').value='';$('date').value=today();window.scrollTo({top:0,behavior:'smooth'})};
+$('transactions').onclick=e=>{let b=e.target.closest('[data-del]');if(b&&confirm('Delete this expense?')){items=items.filter(x=>x.id!==Number(b.dataset.del));saveData()}};
+$('filterMonth').onchange=render;
+$('photo').onchange=e=>{photoFile=e.target.files[0];if(photoFile){$('preview').src=URL.createObjectURL(photoFile);$('preview').classList.remove('hidden')}};
+$('clearPhoto').onclick=()=>{photoFile=null;$('photo').value='';$('preview').classList.add('hidden');$('ocrStatus').textContent='Image removed.'};
+$('readBtn').onclick=async()=>{if(!photoFile){alert('Please choose a screenshot first.');return}if(!window.Tesseract){$('ocrStatus').textContent='OCR library could not load. Check internet, or enter details manually.';return}
+ $('readBtn').disabled=true;$('ocrStatus').textContent='Reading screenshot… please wait.';
+ try{const r=await Tesseract.recognize(photoFile,'eng');const t=r.data.text;const matches=t.match(/(?:₹|Rs\\.?\\s*)?\\s*([0-9,]+\\.\\d{2})/g)||[];if(matches.length){let v=matches.map(s=>Number(s.replace(/[^0-9.]/g,''))).filter(n=>n>0);if(v.length)$('amount').value=Math.max(...v)}
+ const lines=t.split(/\\n/).map(s=>s.trim()).filter(Boolean);const candidate=lines.find(s=>/[A-Za-z]{3,}/.test(s)&&s.length<55&&!/phonepe|success|paid|transaction|upi/i.test(s));if(candidate)$('merchant').value=candidate;
+ $('ocrStatus').textContent='Text read. Please check amount, merchant, category and date carefully.';}catch(e){$('ocrStatus').textContent='Could not read image. Please enter details manually.'}finally{$('readBtn').disabled=false}};
+$('export').onclick=()=>{const rows=[['Date','Amount','Merchant','Category'],...items.map(x=>[x.date,x.amount,x.merchant,x.category])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='my-expenses.csv';a.click();URL.revokeObjectURL(a.href)};
+$('clearAll').onclick=()=>{if(confirm('Permanently delete all expenses saved in this browser? Export a backup first if needed.')){items=[];saveData()}};
+render();
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script></body></html>
