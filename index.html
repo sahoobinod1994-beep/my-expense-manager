@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#173b8f"><link rel="manifest" href="manifest.webmanifest"><title>My Expense Manager</title><style>
 :root{--b:#173b8f;--bg:#f3f6fc;--ink:#17233d;--muted:#667085;--line:#e3e8f2}*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui;color:var(--ink)}header{background:linear-gradient(135deg,#173b8f,#2864c7);color:white;padding:25px 18px 30px;border-radius:0 0 28px 28px}h1{font-size:25px;margin:0 0 5px}main{max-width:760px;margin:auto;padding:16px}.card{background:white;border:1px solid var(--line);border-radius:20px;padding:17px;margin-bottom:14px}.muted{color:var(--muted);font-size:13px}.total{font-size:32px;font-weight:800}.stats,.cats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat,.cat{background:#f7f9fd;border:1px solid var(--line);padding:12px;border-radius:14px}.stat b,.cat b{display:block;font-size:19px;margin-top:5px}h2{font-size:18px;margin:0 0 13px}label{display:block;font-size:13px;font-weight:650;margin:11px 0 5px}input,select,button{font:inherit}input,select{width:100%;padding:12px;border:1px solid #ccd5e4;border-radius:12px;background:white}button{border:0;border-radius:12px;padding:12px 15px;font-weight:700}.primary{background:var(--b);color:white}.secondary{background:#edf2ff;color:var(--b)}.danger{background:#fff0f0;color:#b42318}.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1}.hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px}.tx{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}#preview{max-width:100%;max-height:190px;border-radius:12px;margin-top:10px}.hidden{display:none}footer{text-align:center;color:var(--muted);font-size:11px;padding:15px}
-</style></head><body><header><h1>My Expense Manager</h1><div>PhonePe OCR · Expense reports · Backup & Restore</div></header><main>
+</style></head><body><header><h1>My Expense Manager</h1><div>PhonePe Smart OCR · Expense reports · Backup & Restore</div></header><main>
 <section class="card"><div class="muted">TOTAL EXPENSES</div><div class="total" id="grand">₹0.00</div><div class="muted" id="count">0 transactions</div></section>
 <section class="card"><h2>Overview</h2><div class="stats"><div class="stat"><span class="muted">This month</span><b id="month">₹0.00</b></div><div class="stat"><span class="muted">Today</span><b id="today">₹0.00</b></div></div></section>
 <section class="card"><h2>Category totals</h2><div class="cats" id="cats"></div></section>
@@ -21,66 +21,99 @@ $('save').onclick=()=>{let a=+$('amount').value;if(!(a>0)){alert('Enter a valid 
 $('cancelEdit').onclick=resetEntry;
 $('transactions').onclick=e=>{let ed=e.target.closest('[data-edit]'),b=e.target.closest('[data-del]');if(ed){const x=items.find(v=>v.id===+ed.dataset.edit);if(x){editingId=x.id;$('amount').value=x.amount;$('merchant').value=x.merchant||'';$('category').value=x.category;$('date').value=x.date;$('save').textContent='Update expense';$('cancelEdit').classList.remove('hidden');document.getElementById('amount').scrollIntoView({behavior:'smooth',block:'center'})}}else if(b&&confirm('Delete this expense?')){items=items.filter(x=>x.id!==+b.dataset.del);persist()}};
 $('photo').onchange=e=>{file=e.target.files[0];if(file){$('preview').src=URL.createObjectURL(file);$('preview').classList.remove('hidden')}};$('remove').onclick=()=>{file=null;$('photo').value='';$('preview').classList.add('hidden')};
-function normalizeOcr(s){return String(s||'').replace(/[|]/g,'I').replace(/[，]/g,',').replace(/[Ｏ]/g,'0')}
+function normalizeOcr(s){
+ return String(s||'').replace(/[|]/g,'I').replace(/[，]/g,',').replace(/[ＯＯ]/g,'0').replace(/[₹]/g,'₹').replace(/\u00a0/g,' ');
+}
 function dateFrom(t){
  const s=normalizeOcr(t).replace(/\s+/g,' ');
  let m=s.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2}|\d{2})\b/);
- if(m){let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;let day=a,mo=b;if(a>12&&b<=12){day=a;mo=b}else if(b>12&&a<=12){day=b;mo=a}if(mo>=1&&mo<=12&&day>=1&&day<=31)return `${y}-${String(mo).padStart(2,'0')}-${String(day).padStart(2,'0')}`}
+ if(m){let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;let day=a,mo=b;if(a>12&&b<=12){day=a;mo=b}if(b>12&&a<=12){day=b;mo=a}if(mo>=1&&mo<=12&&day>=1&&day<=31)return `${y}-${String(mo).padStart(2,'0')}-${String(day).padStart(2,'0')}`}
  const months={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
- m=s.match(/\b(\d{1,2})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*,?\s*((?:20)?\d{2})\b/i);
+ const monthPattern='jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
+ m=s.match(new RegExp('\\b(\\d{1,2})\\s+('+monthPattern+')\\s*,?\\s*((?:20)?\\d{2})\\b','i'));
  if(m){let mo=months[m[2].toLowerCase().slice(0,3)],day=+m[1],y=+m[3];if(y<100)y+=2000;if(day>=1&&day<=31)return `${y}-${String(mo).padStart(2,'0')}-${String(day).padStart(2,'0')}`}
- m=s.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2}),?\s*((?:20)?\d{2})\b/i);
+ m=s.match(new RegExp('\\b('+monthPattern+')\\s+(\\d{1,2}),?\\s*((?:20)?\\d{2})\\b','i'));
  if(m){let mo=months[m[1].toLowerCase().slice(0,3)],day=+m[2],y=+m[3];if(y<100)y+=2000;if(day>=1&&day<=31)return `${y}-${String(mo).padStart(2,'0')}-${String(day).padStart(2,'0')}`}
  return '';
 }
 function amountFrom(t){
  const lines=normalizeOcr(t).split(/\n/).map(x=>x.trim()).filter(Boolean),hits=[];
- const add=(n,score,raw)=>{n=Number(String(n).replace(/,/g,''));if(Number.isFinite(n)&&n>0&&n<10000000)hits.push({n,score,raw})};
- for(const line of lines){
-  let m,re=/(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.\d{1,2})?)/gi;
-  while((m=re.exec(line))!==null)add(m[1],100,line);
-  if(/paid\s*to|transaction\s*successful|sent\s*to/i.test(line)){
-   const nums=line.match(/\b[0-9][0-9,]*(?:\.\d{1,2})?\b/g)||[];
-   if(nums.length)add(nums[nums.length-1],45,line);
+ const add=(raw,score,context)=>{let v=String(raw).replace(/[₹,]/g,'').replace(/^(?:Rs\.?|INR)\s*/i,'').trim();let n=Number(v);if(Number.isFinite(n)&&n>=1&&n<=10000000)hits.push({n,score,context})};
+ const moneyRe=/(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.\d{1,2})?)/gi;
+ lines.forEach((line,i)=>{
+  let m;while((m=moneyRe.exec(line))!==null)add(m[1],120,line);
+  // PhonePe "Paid to" recipient row often contains amount without a readable rupee symbol.
+  if(/paid\s*to|sent\s*to|transaction\s*successful/i.test(line)){
+   const nums=line.match(/\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\b\d{1,7}(?:\.\d{1,2})?\b/g)||[];
+   nums.forEach(n=>add(n,55,line));
+   for(const near of lines.slice(Math.max(0,i-1),Math.min(lines.length,i+4))){
+    const ns=near.match(/\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\b\d{1,5}(?:\.\d{1,2})?\b/g)||[];
+    ns.forEach(n=>add(n,35,near));
+   }
   }
+ });
+ // Prefer currency-marked amount; avoid long UPI/UTR/reference IDs.
+ hits.sort((a,b)=>b.score-a.score);
+ return hits.length?hits[0]:null;
+}
+function makeCanvas(img,sx,sy,sw,sh,scale,mode){
+ const c=document.createElement('canvas');c.width=Math.max(1,Math.round(sw*scale));c.height=Math.max(1,Math.round(sh*scale));
+ const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
+ const d=x.getImageData(0,0,c.width,c.height);
+ // Normalize colored PhonePe dark-mode UI to high-contrast text.
+ for(let i=0;i<d.data.length;i+=4){
+  const g=.299*d.data[i]+.587*d.data[i+1]+.114*d.data[i+2];
+  let v;
+  if(mode==='invert')v=g<155?255:0;
+  else if(mode==='gray')v=Math.max(0,Math.min(255,(g-95)*2.1));
+  else v=g<145?0:255;
+  d.data[i]=d.data[i+1]=d.data[i+2]=v;
  }
- hits.sort((a,b)=>b.score-a.score);return hits.length?hits[0]:null;
+ x.putImageData(d,0,0);return c;
 }
 async function makeOcrImages(file){
  const img=await new Promise((resolve,reject)=>{const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);resolve(im)};im.onerror=reject;im.src=u});
- const w=img.naturalWidth,h=img.naturalHeight,variants=[];
- for(const scale of [2,3]){
-  const c=document.createElement('canvas');c.width=Math.round(w*scale);c.height=Math.round(h*scale);
-  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,c.width,c.height);
-  const d=x.getImageData(0,0,c.width,c.height);
-  for(let i=0;i<d.data.length;i+=4){const g=.299*d.data[i]+.587*d.data[i+1]+.114*d.data[i+2];const v=g<150?255:0;d.data[i]=d.data[i+1]=d.data[i+2]=v}
-  x.putImageData(d,0,0);variants.push(c);
- }
- const top=document.createElement('canvas');top.width=Math.round(w*2.5);top.height=Math.round(h*.58*2.5);
- const tx=top.getContext('2d',{willReadFrequently:true});tx.drawImage(img,0,0,w,h*.58,0,0,top.width,top.height);
- const td=tx.getImageData(0,0,top.width,top.height);
- for(let i=0;i<td.data.length;i+=4){const g=.299*td.data[i]+.587*td.data[i+1]+.114*td.data[i+2];const v=g<165?255:0;td.data[i]=td.data[i+1]=td.data[i+2]=v}
- tx.putImageData(td,0,0);variants.push(top);return variants;
+ const w=img.naturalWidth,h=img.naturalHeight;
+ // Full receipt, upper receipt (date/time + Paid to row), and focused middle crop.
+ return [
+  makeCanvas(img,0,0,w,h,2,'gray'),
+  makeCanvas(img,0,0,w,h,3,'invert'),
+  makeCanvas(img,0,0,w,Math.round(h*.58),3,'invert'),
+  makeCanvas(img,0,Math.round(h*.08),w,Math.round(h*.48),4,'gray'),
+  makeCanvas(img,0,Math.round(h*.12),w,Math.round(h*.42),4,'invert')
+ ];
 }
 $('ocr').onclick=async()=>{
  if(!file){alert('Choose screenshot first');return}
- if(!window.Tesseract){$('status').textContent='OCR library could not load. Check internet.';return}
- $('ocr').disabled=true;$('status').textContent='Preparing image and reading PhonePe details…';
+ if(!window.Tesseract){$('status').textContent='OCR library could not load. Check internet connection.';return}
+ $('ocr').disabled=true;$('status').textContent='Reading PhonePe receipt. Please wait…';
  try{
-  const variants=await makeOcrImages(file);let bestText='',bestConf=-1;
+  const variants=await makeOcrImages(file);let candidates=[];
   for(let i=0;i<variants.length;i++){
-   $('status').textContent=`Reading screenshot (pass ${i+1}/${variants.length})…`;
-   const r=await Tesseract.recognize(variants[i],'eng',{tessedit_pageseg_mode:'6'}),conf=Number(r.data.confidence)||0;
-   if(conf>bestConf){bestConf=conf;bestText=r.data.text||''}
+   for(const psm of ['6','11']){
+    $('status').textContent=`PhonePe OCR: image ${i+1}/${variants.length}, scan ${psm}…`;
+    // Tesseract.js v5 expects OCR engine parameters in the fourth argument.
+    const r=await Tesseract.recognize(variants[i],'eng',{}, {tessedit_pageseg_mode:psm,preserve_interword_spaces:'1'});
+    const text=r.data.text||'',conf=Number(r.data.confidence)||0,amt=amountFrom(text),date=dateFrom(text);
+    const score=(amt?amt.score:0)+(date?100:0)+conf*.15;
+    candidates.push({text,conf,amt,date,score});
+   }
   }
-  const amt=amountFrom(bestText),date=dateFrom(bestText);
-  if(amt)$('amount').value=amt.n;if(date)$('date').value=date;
-  const lines=bestText.split(/\n/).map(s=>s.trim()).filter(Boolean);
+  candidates.sort((a,b)=>b.score-a.score);
+  const best=candidates[0]||{text:'',amt:null,date:'',conf:0};
+  // If separate passes find amount and date, combine the strongest independent detections.
+  const bestAmount=candidates.filter(x=>x.amt).sort((a,b)=>b.amt.score-a.amt.score||b.conf-a.conf)[0];
+  const bestDate=candidates.filter(x=>x.date).sort((a,b)=>b.conf-a.conf)[0];
+  const amount=bestAmount?.amt||best.amt,date=bestDate?.date||best.date;
+  if(amount)$('amount').value=amount.n;
+  if(date)$('date').value=date;
+  const lines=best.text.split(/\n/).map(s=>s.trim()).filter(Boolean);
   const merchant=lines.find(s=>/[A-Za-z]{3,}/.test(s)&&s.length<65&&!/phonepe|success|paid|transaction|upi|date|time|amount/i.test(s));
-  if(merchant)$('merchant').value=merchant.replace(/\s+\d{1,6}(?:\.\d{1,2})?$/,'').trim();
-  $('ocrText').textContent=bestText||'No text recognized';$('ocrDebug').classList.remove('hidden');
-  $('status').textContent=(amt?`Amount suggestion: ₹${amt.n}. `:'Amount not confidently detected. ')+(date?`Date detected: ${date}. `:'Date not detected. ')+'Please verify before saving.';
- }catch(e){$('status').textContent='Could not read screenshot. Check internet and try again.'}
+  if(merchant)$('merchant').value=merchant.replace(/\s+\d{1,7}(?:\.\d{1,2})?$/,'').trim();
+  $('ocrText').textContent=candidates.slice(0,3).map((x,i)=>`SCAN ${i+1} (confidence ${x.conf.toFixed(1)}%)\n${x.text}`).join('\n\n---\n\n');
+  $('ocrDebug').classList.remove('hidden');
+  $('status').textContent=(amount?`Amount suggestion: ₹${amount.n}. `:'Amount not confidently detected. ')+(date?`Date detected: ${date}. `:'Date not detected. ')+'Verify the original PhonePe receipt before saving.';
+ }catch(e){console.error(e);$('status').textContent='OCR could not finish. Check internet and try again.'}
  finally{$('ocr').disabled=false}
 };
 $('backup').onclick=()=>{let data={app:'My Expense Manager',version:2,exportedAt:new Date().toISOString(),expenses:items},a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='my-expenses-backup.json';a.click();$('backupStatus').textContent='Backup downloaded.'};$('restore').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=async e=>{try{let d=JSON.parse(await e.target.files[0].text()),arr=Array.isArray(d)?d:d.expenses;if(!Array.isArray(arr))throw 0;if(confirm('Restore backup? Current entries will be replaced.')){items=arr.filter(x=>x&&+x.amount>0).map((x,i)=>({id:+x.id||Date.now()+i,amount:+x.amount,merchant:String(x.merchant||'Expense'),category:cats.includes(x.category)?x.category:'Other',date:/^\d{4}-\d{2}-\d{2}$/.test(x.date)?x.date:today()}));persist();$('backupStatus').textContent='Backup restored.'}}catch(e){alert('Invalid backup file')}finally{$('restoreFile').value=''}};$('csv').onclick=()=>{let rows=[['Date','Amount','Merchant','Category'],...items.map(x=>[x.date,x.amount,x.merchant,x.category])],csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='my-expenses.csv';a.click()};$('clear').onclick=()=>{if(confirm('Delete all saved expenses?')){items=[];persist()}};if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
